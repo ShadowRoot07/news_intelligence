@@ -1,9 +1,12 @@
 name: Daily News Analysis
 
 on:
+  push:
+    branches:
+      - main              # <--- ESTO ES LO QUE FALTA PARA QUE ACTÚE AL HACER PUSH
   schedule:
-    - cron: '0 0 * * *' # Se ejecuta exactamente a las 00:00 UTC (1 vez al día)
-  workflow_dispatch:      # Permite que tú lo actives manualmente cuando quieras
+    - cron: '0 0 * * *'   # 1 vez al día a medianoche
+  workflow_dispatch:      # Botón manual
 
 jobs:
   build-and-run:
@@ -30,6 +33,9 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           DEBUG: "False"
         run: |
+          # Forzamos makemigrations por si olvidaste subirlas, 
+          # aunque lo ideal es que ya vayan en el push.
+          python manage.py makemigrations news_aggregator
           python manage.py migrate
           python manage.py shell -c "from news_aggregator.utils import run_all; run_all()"
 
