@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 from groq import Groq
 from .models import Article
 
-# Usamos una clave vacía si no existe para que no explote en local si no hay Groq
 client = Groq(api_key=os.environ.get("GROQ_API_KEY", "no-key"))
 
 SOURCES = [
@@ -16,6 +15,9 @@ SOURCES = [
     {'url': 'https://www.reuters.com/business/healthcare-pharmaceuticals/', 'cat': 'MED', 'name': 'Reuters Health'},
     {'url': 'https://www.economist.com/finance-and-economics', 'cat': 'ECO', 'name': 'The Economist'},
     {'url': 'https://www.bbc.com/news/world', 'cat': 'POL', 'name': 'BBC World'},
+    # --- NUEVAS FUENTES ---
+    {'url': 'https://thehackernews.com/', 'cat': 'CYB', 'name': 'The Hacker News'},
+    {'url': 'https://www.bleepingcomputer.com/', 'cat': 'CYB', 'name': 'Bleeping Computer'},
 ]
 
 def get_best_model():
@@ -36,7 +38,6 @@ def clean_url(url):
     return url.split('?')[0].split('#')[0].strip().rstrip('/')
 
 def scrape_news():
-    # User-Agent completo para evitar bloqueos de 403 Forbidden
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -47,21 +48,15 @@ def scrape_news():
         try:
             print(f"Scrapeando: {source['name']}...")
             response = requests.get(source['url'], headers=headers, timeout=20)
-            
-            # Debug para ver si el sitio nos deja entrar
             print(f"DEBUG: Status {response.status_code} de {source['name']}")
-            
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Buscamos titulares en h2, h3 y también etiquetas 'a' que parecen titulares
+            # Buscamos en h2 y h3 (la mayoría de los sitios de ciberseguridad usan h2)
             headlines = soup.find_all(['h2', 'h3'], limit=12)
-            print(f"DEBUG: Encontrados {len(headlines)} candidatos en {source['name']}")
 
             for h in headlines:
                 title = h.get_text().strip()
-                
-                # Buscamos el link: puede estar adentro, o el h2/h3 puede ser hijo de un <a>
-                link_tag = h.find('a') 
+                link_tag = h.find('a') if h.name != 'a' else h
                 if not link_tag:
                     link_tag = h.find_parent('a')
 
@@ -79,8 +74,6 @@ def scrape_news():
                     )
                     if created:
                         total_added += 1
-
-            # Bajamos el sleep a 5 segundos para no agotar el tiempo de GitHub Actions
             time.sleep(5)
         except Exception as e:
             print(f"❌ Error en {source['name']}: {e}")
@@ -88,7 +81,6 @@ def scrape_news():
     return f">>> Éxito: {total_added} noticias nuevas."
 
 def analyze_with_groq():
-    # Buscamos artículos sin resumen
     articles = Article.objects.filter(summary__isnull=True) | Article.objects.filter(summary="")
     if not articles.exists():
         return ">>> No hay artículos para analizar."
@@ -98,7 +90,6 @@ def analyze_with_groq():
 
     for article in articles:
         try:
-            # Si no hay API KEY, saltamos (para evitar errores en local sin variables)
             if not os.environ.get("GROQ_API_KEY"):
                 print("⚠️ Saltando análisis: GROQ_API_KEY no configurada.")
                 break
@@ -107,7 +98,7 @@ def analyze_with_groq():
             prompt = f"""
             Analiza esta noticia de {cat_display}: "{article.title}"
             Genera un JSON con:
-            1. "resumen": 2 párrafos profesionales en español.
+            1. "resumen": 2 párrafos profesionales en español (texto plano, sin listas).
             2. "sentimiento": POSITIVO, NEGATIVO o NEUTRAL.
             3. "explicacion": 1 frase del porqué.
             """
@@ -120,7 +111,14 @@ def analyze_with_groq():
             )
 
             data = json.loads(completion.choices[0].message.content)
-            article.summary = data.get("resumen", "Sin resumen.")
+            
+            # --- LIMPIEZA DE RESUMEN ---
+            resumen_raw = data.get("resumen", "Sin resumen.")
+            if isinstance(resumen_raw, list):
+                article.summary = " ".join(resumen_raw)
+            else:
+                article.summary = str(resumen_raw)
+
             article.sentiment_label = data.get("sentimiento", "Neutral").capitalize()
             article.analysis_detail = data.get("explicacion", "Sin detalle.")
             article.save()
