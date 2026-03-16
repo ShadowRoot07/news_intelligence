@@ -61,13 +61,15 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / 'templates'], # <--- ESTO FALTABA
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
+                "django.template.context_processors.debug", # Añadido para estabilidad
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
@@ -75,6 +77,7 @@ TEMPLATES = [
         },
     },
 ]
+
 
 WSGI_APPLICATION = "config.wsgi.application"
 
@@ -86,10 +89,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 # config/settings.py
 
 # Comenta esto un momento:
- DATABASES = {
-     'default': dj_database_url.config(default=os.environ.get('DATABASE_URL'))
+DATABASES = {
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600 # Recomendado para Neon
+    )
 }
-
 # Usa esto solo para generar las migraciones:
 #DATABASES = {
 #        'default': {
