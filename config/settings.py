@@ -83,13 +83,20 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 # Database - Configuración dinámica para remota (Neon) y local (SQLite)
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL', f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
-        conn_max_age=600,
-        ssl_require=True if os.getenv('DATABASE_URL') else False
-    )
+# config/settings.py
+
+# Comenta esto un momento:
+ DATABASES = {
+     'default': dj_database_url.config(default=os.environ.get('DATABASE_URL'))
 }
+
+# Usa esto solo para generar las migraciones:
+#DATABASES = {
+#        'default': {
+#        'ENGINE': 'django.db.backends.sqlite3',
+#        'NAME': BASE_DIR / 'db.sqlite3',
+#    }
+#}
 
 # ... (resto del archivo igual)
 
@@ -132,3 +139,6 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
