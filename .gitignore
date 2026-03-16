@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Django
+db.sqlite3
+media/
+staticfiles/
+
+# Termux/OS
+.DS_Store
+.vscode/
+
