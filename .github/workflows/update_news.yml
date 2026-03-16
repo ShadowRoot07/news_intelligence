@@ -1,9 +1,12 @@
 name: Update News Feed and AI Analysis
 
 on:
+  push:
+    branches:
+      - main              # Se ejecuta cada vez que subas código a main
   schedule:
-    - cron: '0 */6 * * *' # Se ejecuta cada 6 horas
-  workflow_dispatch:      # Permite ejecutarlo manualmente desde el botón en GitHub
+    - cron: '0 */6 * * *' # Mantenemos esto para que se actualice solo cada 6 horas
+  workflow_dispatch:      # Mantenemos el botón manual por si acaso
 
 jobs:
   build-and-run:
@@ -25,11 +28,12 @@ jobs:
 
       - name: Run Scraper and Groq Analysis
         env:
-          # Estas variables deben estar en Settings > Secrets del repo
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           DEBUG: "False"
         run: |
+          # Usamos python manage.py migrate antes para asegurar que las tablas existan en Neon
+          python manage.py migrate
           python manage.py shell -c "from news_aggregator.utils import run_all; run_all()"
 
