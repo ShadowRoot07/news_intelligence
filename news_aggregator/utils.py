@@ -7,7 +7,8 @@ from bs4 import BeautifulSoup
 from groq import Groq
 from .models import Article
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+# Usamos una clave vacía si no existe para que no explote en local si no hay Groq
+client = Groq(api_key=os.environ.get("GROQ_API_KEY", "no-key"))
 
 SOURCES = [
     {'url': 'https://www.technologyreview.com/news/', 'cat': 'TEC', 'name': 'MIT Tech Review'},
@@ -18,86 +19,95 @@ SOURCES = [
 ]
 
 def get_best_model():
-    """Busca y selecciona automáticamente el mejor modelo disponible en Groq."""
     try:
         models_list = client.models.list()
-        # Filtramos modelos que contengan 'llama-3' y que estén activos
-        # Priorizamos modelos 'instant' por velocidad o 'versatile' por calidad
         available_models = [m.id for m in models_list.data if "llama-3" in m.id.lower()]
-        
-        # Preferencias de modelos (de mejor a peor para este proyecto)
         preferred = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192"]
-        
         for p in preferred:
             if p in available_models:
-                print(f"🤖 Modelo seleccionado automáticamente: {p}")
+                print(f"🤖 Modelo seleccionado: {p}")
                 return p
-        
-        # Si no hay preferidos, tomamos el primero disponible de la familia Llama 3
         return available_models[0] if available_models else "llama-3.1-8b-instant"
     except Exception as e:
         print(f"⚠️ Error al listar modelos: {e}. Usando fallback.")
         return "llama-3.1-8b-instant"
 
 def clean_url(url):
-    """Elimina parámetros de rastreo y fragmentos."""
     return url.split('?')[0].split('#')[0].strip().rstrip('/')
 
 def scrape_news():
-    """Extrae titulares con limpieza profunda de URLs."""
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    # User-Agent completo para evitar bloqueos de 403 Forbidden
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
     total_added = 0
 
     for source in SOURCES:
         try:
             print(f"Scrapeando: {source['name']}...")
-            response = requests.get(source['url'], headers=headers, timeout=15)
+            response = requests.get(source['url'], headers=headers, timeout=20)
+            
+            # Debug para ver si el sitio nos deja entrar
+            print(f"DEBUG: Status {response.status_code} de {source['name']}")
+            
             soup = BeautifulSoup(response.text, 'html.parser')
-            headlines = soup.find_all(['h2', 'h3'], limit=8)
+            
+            # Buscamos titulares en h2, h3 y también etiquetas 'a' que parecen titulares
+            headlines = soup.find_all(['h2', 'h3'], limit=12)
+            print(f"DEBUG: Encontrados {len(headlines)} candidatos en {source['name']}")
 
             for h in headlines:
                 title = h.get_text().strip()
-                link_tag = h.find('a') if h.name != 'a' else h
+                
+                # Buscamos el link: puede estar adentro, o el h2/h3 puede ser hijo de un <a>
+                link_tag = h.find('a') 
+                if not link_tag:
+                    link_tag = h.find_parent('a')
 
-                if title and len(title) > 15:
-                    if link_tag and link_tag.has_attr('href'):
-                        full_url = urljoin(source['url'], link_tag['href'])
-                        final_url = clean_url(full_url)
+                if title and len(title) > 15 and link_tag and link_tag.has_attr('href'):
+                    full_url = urljoin(source['url'], link_tag['href'])
+                    final_url = clean_url(full_url)
 
-                        obj, created = Article.objects.get_or_create(
-                            url=final_url,
-                            defaults={
-                                'title': title,
-                                'source': source['name'],
-                                'category': source['cat']
-                            }
-                        )
-                        if created:
-                            total_added += 1
-            
-            time.sleep(15)
+                    obj, created = Article.objects.get_or_create(
+                        url=final_url,
+                        defaults={
+                            'title': title,
+                            'source': source['name'],
+                            'category': source['cat']
+                        }
+                    )
+                    if created:
+                        total_added += 1
+
+            # Bajamos el sleep a 5 segundos para no agotar el tiempo de GitHub Actions
+            time.sleep(5)
         except Exception as e:
             print(f"❌ Error en {source['name']}: {e}")
 
     return f">>> Éxito: {total_added} noticias nuevas."
 
 def analyze_with_groq():
-    """Procesamiento con IA y selección automática de modelo."""
+    # Buscamos artículos sin resumen
     articles = Article.objects.filter(summary__isnull=True) | Article.objects.filter(summary="")
     if not articles.exists():
         return ">>> No hay artículos para analizar."
 
-    # Buscamos el modelo antes de empezar el bucle
     current_model = get_best_model()
     count = 0
 
     for article in articles:
         try:
+            # Si no hay API KEY, saltamos (para evitar errores en local sin variables)
+            if not os.environ.get("GROQ_API_KEY"):
+                print("⚠️ Saltando análisis: GROQ_API_KEY no configurada.")
+                break
+
             cat_display = article.get_category_display()
             prompt = f"""
             Analiza esta noticia de {cat_display}: "{article.title}"
             Genera un JSON con:
-            1. "resumen": 2 párrafos profesionales.
+            1. "resumen": 2 párrafos profesionales en español.
             2. "sentimiento": POSITIVO, NEGATIVO o NEUTRAL.
             3. "explicacion": 1 frase del porqué.
             """
@@ -117,7 +127,7 @@ def analyze_with_groq():
 
             count += 1
             print(f"✅ Analizado: {article.title[:30]}...")
-            time.sleep(1) 
+            time.sleep(1)
 
         except Exception as e:
             print(f"❌ Error Groq ID {article.id}: {e}")
