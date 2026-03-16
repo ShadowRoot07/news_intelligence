@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowRoot07 | AI News</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-200 min-h-screen pb-10">
+
+    <nav class="sticky top-0 z-50 glass border-b border-gray-800 p-4">
+        <div class="flex justify-between items-center max-w-4xl mx-auto">
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
+                Shadow News AI
+            </h1>
+            <span class="text-[10px] bg-green-900 text-green-300 px-2 py-1 rounded-full uppercase tracking-widest">
+                Live Analysis
+            </span>
+        </div>
+        
+        <div class="flex space-x-2 mt-4 overflow-x-auto pb-2 no-scrollbar">
+            <a href="/" class="px-4 py-1.5 rounded-full bg-gray-800 text-sm whitespace-nowrap border border-gray-700 hover:bg-gray-700">Todos</a>
+            <a href="/category/TEC/" class="px-4 py-1.5 rounded-full bg-blue-900/30 text-blue-400 text-sm whitespace-nowrap border border-blue-800">Tecnología</a>
+            <a href="/category/CRP/" class="px-4 py-1.5 rounded-full bg-yellow-900/30 text-yellow-400 text-sm whitespace-nowrap border border-yellow-800">Cripto</a>
+            <a href="/category/POL/" class="px-4 py-1.5 rounded-full bg-red-900/30 text-red-400 text-sm whitespace-nowrap border border-red-800">Política</a>
+            <a href="/category/MED/" class="px-4 py-1.5 rounded-full bg-purple-900/30 text-purple-400 text-sm whitespace-nowrap border border-purple-800">Medicina</a>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto p-4 space-y-6 mt-4">
+        {% for article in articles %}
+        <article class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                <span class="text-xs font-mono text-gray-500">{{ article.source }}</span>
+                <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 rounded-full 
+                        {% if article.sentiment_label == 'Positivo' %} bg-green-500 shadow-[0_0_8px_#22c55e] 
+                        {% elif article.sentiment_label == 'Negativo' %} bg-red-500 shadow-[0_0_8px_#ef4444] 
+                        {% else %} bg-gray-500 {% endif %}">
+                    </div>
+                    <span class="text-[10px] uppercase font-bold text-gray-400">{{ article.sentiment_label }}</span>
+                </div>
+            </div>
+
+            <div class="p-5">
+                <h2 class="text-lg font-bold leading-tight mb-3 hover:text-green-400 transition">
+                    <a href="{{ article.url }}" target="_blank">{{ article.title }}</a>
+                </h2>
+
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">
+                    {{ article.summary }}
+                </p>
+
+                <div class="bg-black/40 rounded-xl p-3 border border-gray-800">
+                    <div class="flex items-center space-x-2 mb-1">
+                        <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <span class="text-xs font-bold text-green-500 uppercase">Análisis de la IA</span>
+                    </div>
+                    <p class="text-[11px] text-gray-500 italic">
+                        {{ article.analysis_detail }}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="px-5 py-3 bg-gray-800/30 flex justify-between items-center text-[10px] text-gray-500">
+                <span>{{ article.get_category_display }}</span>
+                <span>Hace {{ article.published_at|timesince }}</span>
+            </div>
+        </article>
+        {% empty %}
+        <div class="text-center py-20">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mb-4"></div>
+            <p class="text-gray-500">Buscando y analizando noticias frescas...</p>
+        </div>
+        {% endfor %}
+    </main>
+
+</body>
+</html>
+
