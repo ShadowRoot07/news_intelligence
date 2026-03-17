@@ -26,6 +26,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Este paso SOLO se ejecuta cuando haces un PUSH
+      - name: Run Tests (Only on Push)
+        if: github.event_name == 'push'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          python manage.py test news_aggregator --keepdb
+
       - name: Run Scraper and AI Analysis
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -36,7 +46,7 @@ jobs:
         run: |
           # Sincronizamos la base de datos en Neon
           python manage.py migrate --noinput
-          
-          # Ejecutamos el comando personalizado de la Opción A
+
+          # Ejecutamos el comando personalizado
           python manage.py fetch_news
 
